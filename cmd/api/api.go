@@ -1,19 +1,19 @@
 package api
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 
+	"github.com/jackc/pgx/v5"
 	handlers "github.com/nirwan77/goLang/cmd/handler"
 )
 
 type APIServer struct {
 	Address string
-	db      *sql.DB
+	db      *pgx.Conn
 }
 
-func NewAPIServer(Address string, db *sql.DB) *APIServer {
+func NewAPIServer(Address string, db *pgx.Conn) *APIServer {
 	return &APIServer{
 		Address,
 		db,
