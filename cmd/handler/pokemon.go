@@ -2,7 +2,10 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type Pokemon struct {
@@ -11,13 +14,23 @@ type Pokemon struct {
 	Type string `json:"type"`
 }
 
-func HandleGetPokemon() http.HandlerFunc {
+func HandleGetPokemon(s *pgx.Conn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			pokemons := []Pokemon{
-				{ID: 1, Name: "Bulbasaur", Type: "Grass"},
-				{ID: 2, Name: "Charmander", Type: "Fire"},
-				{ID: 3, Name: "Squirtle", Type: "Water"},
+			rows, err := s.Query(r.Context(), "SELECT id, name, type FROM pokemon")
+			if err != nil {
+				return
+			}
+			defer rows.Close()
+
+			pokemons, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Pokemon, error) {
+				var p Pokemon
+				err := row.Scan(&p.ID, &p.Name, &p.Type)
+				return p, err
+			})
+
+			if err != nil {
+				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
@@ -28,13 +41,24 @@ func HandleGetPokemon() http.HandlerFunc {
 			var updateData Pokemon
 
 			if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
-				http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+				fmt.Print(err)
 				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
+
+			query := `INSERT INTO pokemon (name, type) VALUES ($1, $2)`
+
+			_, err := s.Exec(r.Context(), query, updateData.Name, updateData.Type)
+			if err != nil {
+				fmt.Print(err)
+				return
+			}
+
+			w.WriteHeader(http.StatusCreated)
+
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"message": "Pokemon updated successfully",
+				"message": "Pokemon inserted successfully",
 				"data":    updateData,
 			})
 		}
