@@ -37,6 +37,39 @@ func HandleGetPokemon(s *pgx.Conn) http.HandlerFunc {
 			json.NewEncoder(w).Encode(pokemons)
 		}
 
+		if r.Method == http.MethodPatch {
+			var patchData Pokemon
+
+			if err := json.NewDecoder(r.Body).Decode(&patchData); err != nil {
+				fmt.Print(err)
+				return
+			}
+
+			query := "Update Pokemon set name=$1, type=$2 where id = $3"
+
+			res, err := s.Exec(r.Context(), query, patchData.Name, patchData.Type, patchData.ID)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			if res.RowsAffected() == 0 {
+				w.WriteHeader(http.StatusNotFound)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "Pokemon with given ID not found",
+				})
+				return
+			}
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message": fmt.Sprintf("successfully updated id %d", patchData.ID),
+				"data": map[string]interface{}{
+					"name": patchData.Name,
+					"type": patchData.Type,
+				},
+			})
+
+		}
+
 		if r.Method == http.MethodPost {
 			var updateData Pokemon
 
@@ -59,7 +92,7 @@ func HandleGetPokemon(s *pgx.Conn) http.HandlerFunc {
 
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"message": "Pokemon inserted successfully",
-				"data":    updateData,
+				"data":    map[string]interface{}{"name": updateData.Name, "type": updateData.Type},
 			})
 		}
 	}
