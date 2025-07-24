@@ -22,6 +22,8 @@ func NewAPIServer(Address string, db *pgx.Conn) *APIServer {
 
 func (s *APIServer) routes() {
 	http.HandleFunc("/pokemon", handlers.HandleGetPokemon(s.db))
+
+	http.HandleFunc("/pokemon/", handlers.HandleDeletePokemon(s.db))
 }
 
 func (s *APIServer) Run() error {
