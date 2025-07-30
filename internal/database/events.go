@@ -1,6 +1,10 @@
 package database
 
-import "database/sql"
+import (
+	"context"
+	"database/sql"
+	"time"
+)
 
 type EventModel struct {
 	DB *sql.DB
@@ -13,4 +17,95 @@ type Event struct {
 	Description string `json:"description" binding:"required,min=3"`
 	Date        string `json:"date" binding:"required, datetime=2006-01-02"`
 	Location    string `json:"location" binding:"required,min=3"`
+}
+
+func (m *EventModel) Insert(event *Event) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	query := "INSERT INTO events (owner_id, name, description, date, location) VALUES ($1,$2,$3, $4, $5)"
+
+	return m.DB.QueryRowContext(ctx, query, event.OwnerId, event.Name, event.Description, event.Date, event.Location).Scan(*&event.Id)
+}
+
+func (m *EventModel) GetAll() ([]*Event, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	query := "SELECT * FROM events"
+
+	rows, err := m.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	events := []*Event{}
+
+	for rows.Next() {
+		var event Event
+
+		err := rows.Scan(&event.Id, &event.OwnerId, &event.Name, &event.Description, &event.Date, &event.Location)
+		if err != nil {
+			return nil, err
+		}
+
+		events = append(events, &event)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return events, nil
+}
+
+func (m *EventModel) GetEvent(id int) (*Event, error) {
+	var event Event
+
+	ctx, close := context.WithTimeout(context.Background(), 3*time.Second)
+	defer close()
+
+	query := "Select * from events where id = $1"
+
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(&event.Id, &event.OwnerId, &event.Name, &event.Description, &event.Date, &event.Location)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &event, nil
+}
+
+func (m *EventModel) UpdateEvent(event *Event) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	query := "UPDATE events set name = $1, description = $2, date =$3, location =$4 where id = $5"
+
+	_, err := m.DB.ExecContext(ctx, query, event.Name, event.Description, event.Date, event.Description, event.Id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *EventModel) DeleteEvent(id int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	query := "Delete from events where id = $1"
+
+	_, err := m.DB.ExecContext(ctx, query, id)
+
+	if err == nil {
+		return err
+	}
+
+	return nil
 }
